@@ -1,0 +1,16 @@
+#+AUTHOR: Sam Howie
+
+* What is this?
+
+This is my emacs config. It's written in a literate style with [[http://orgmode.org/worg/org-contrib/babel/intro.html][org-babel]].
+
+My init file is a huge org file sprinkled with elisp code blocks. These code blocks are evaluated by org-babel on startup.
+
+
+* How do I view it?
+
+GitHub can read =.org= files and render them nicely! But it is best read in emacs org-mode.
+
+* Credits
+
+I was shamelessly inspired by [[auwsmit/emacsconfig][https://github.com/auwsmit/emacsconfig]]. This is the repo that introduced me to the concept of org-babel and its possibilities.

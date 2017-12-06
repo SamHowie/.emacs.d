@@ -1,0 +1,689 @@
+#+TITLE: An Emacs Config
+#+AUTHOR: Sam Howie
+#+EMAIL: samhowie@gmail.com
+
+* Preamble
+
+This is my Emacs config. It is a literate configuration thanks to [[http://orgmode.org/worg/org-contrib/babel/intro.html][org-babel]].
+
+* Package
+
+Setup general package related settings.
+
+** Straight
+
+Bootstrap [[https://github.com/raxod502/straight.el][Straight]], a package manager for the Emacs hacker.
+
+#+BEGIN_SRC emacs-lisp
+(let ((bootstrap-file (concat user-emacs-directory "straight/bootstrap.el"))
+      (bootstrap-version 2))
+  (unless (file-exists-p bootstrap-file)
+    (with-current-buffer
+        (url-retrieve-synchronously
+         "https://raw.githubusercontent.com/raxod502/straight.el/develop/install.el"
+         'silent 'inhibit-cookies)
+      (goto-char (point-max))
+      (eval-print-last-sexp)))
+  (load bootstrap-file nil 'nomessage))
+#+END_SRC
+
+** load path
+
+The =~/.emacs.d/lib= directory contains modules that cannot be effeciently fetched by straight. This means we need to add the lib directory to our =load-path= so the modules may be required.
+
+#+BEGIN_SRC emacs-lisp
+  (let ((default-directory  "~/.emacs.d/lib/"))
+  (normal-top-level-add-subdirs-to-load-path))
+#+END_SRC
+
+*Libraries:*
+
+- hack-mode
+
+* UI
+
+Make emacs prettier! These setting (mostly) shouldn't affect any functionality.
+
+** Minimal GUI
+
+Remove unnecessary GUI elements: menu-bar, tool-bar, and scroll-bar.
+
+#+BEGIN_SRC emacs-lisp
+(if (fboundp 'menu-bar-mode) (menu-bar-mode -1))
+(if (fboundp 'tool-bar-mode) (tool-bar-mode -1))
+(if (fboundp 'scroll-bar-mode) (scroll-bar-mode -1))
+#+END_SRC
+
+** No splash screen
+
+#+BEGIN_SRC emacs-lisp
+(setq inhibit-splash-screen t)
+#+END_SRC
+
+** Initial scratch buffer message
+
+NO DISTRACTIONS.
+
+#+BEGIN_SRC emacs-lisp
+(setq initial-scratch-message "")
+#+END_SRC
+
+** Stop custom themes from causing warning popups.
+
+#+BEGIN_SRC emacs-lisp
+(setq custom-safe-themes t)
+#+END_SRC
+   
+** Highlight matching bracket when cursor focused
+
+#+BEGIN_SRC emacs-lisp
+  (setq show-paren-style 'parenthesis)
+  (setq show-paren-delay 0)
+
+  (set-face-foreground 'show-paren-match (face-foreground 'highlight))
+  (set-face-background 'show-paren-match (face-background 'highlight))
+  (set-face-attribute 'show-paren-match nil :weight 'extra-bold)
+  (show-paren-mode 1)
+#+END_SRC
+
+** Modeline
+
+#+BEGIN_SRC emacs-lisp
+  (setq-default mode-line-format
+        (list
+         " " mode-line-modified
+         " %[" mode-line-buffer-identification "%] %l %6 "
+         mode-line-misc-info
+         mode-line-end-spaces))
+  (setq global-mode-string '((t jabber-activity-mode-string)
+                            "" display-time-string appt-mode-string))
+#+END_SRC
+
+** Font
+
+#+BEGIN_SRC emacs-lisp
+  (set-default-font "Fira Code")
+#+END_SRC
+
+** Vertical border
+
+Set symbol for the border.
+
+#+BEGIN_SRC emacs-lisp
+  (set-display-table-slot standard-display-table
+                          'vertical-border 
+                          (make-glyph-code ?┃))
+#+END_SRC
+
+Set border colors.
+
+#+BEGIN_SRC emacs-lisp
+  (set-face-background 'vertical-border (face-background 'default))
+  (set-face-foreground 'vertical-border (face-foreground 'default))
+#+END_SRC
+
+** Themes
+
+Beautiful themes!
+
+*** Spacemacs
+
+#+BEGIN_SRC emacs-lisp
+  (straight-use-package 'spacemacs-theme)
+#+END_SRC
+    
+*** Leuven
+
+#+BEGIN_SRC emacs-lisp
+  (straight-use-package 'leuven-theme)
+  (load-theme 'leuven t)
+#+END_SRC
+ 
+* UX
+
+Make emacs nicer to use! These settings can effect functionality.
+
+** Disable auto save and backups
+
+All those files that creep in are gross. Let's prevent them from being created.
+
+#+BEGIN_SRC emacs-lisp
+  (setq auto-save-default nil)
+  (setq make-backup-files nil)
+#+END_SRC
+
+** 'y' or 'n' instead of 'yes' or 'no'
+
+Typing is a hassle. Let's type less.
+
+#+BEGIN_SRC emacs-lisp
+  (defalias 'yes-or-no-p 'y-or-n-p)
+#+END_SRC
+
+** No tabs
+   
+Use spaces instead of tabs (sorry, Richard Hendricks)!
+
+#+BEGIN_SRC emacs-lisp
+  (setq indent-tabs-mode nil)
+#+END_SRC
+
+** STOP THE BEEPING AND FLASHING
+
+Beep, bloop!
+
+#+BEGIN_SRC emacs-lisp
+(setq ring-bell-function 'ignore)
+#+END_SRC
+
+** Enable word wrap
+
+=visual-line-mode= wraps lines when they hit the edge of the viewport. If this is not enabled then text disappears out of the viewport, which is a bit annoying.
+
+#+BEGIN_SRC emacs-lisp
+(global-visual-line-mode)
+#+END_SRC
+ 
+** General Keybinding
+
+General is a library for defining keys in emacs. It makes setting up key bindings a lot easier. We will use it a lot setting up packages to run nice in =evil-mode=.
+
+#+BEGIN_SRC emacs-lisp
+(straight-use-package 'general)
+(require 'general)
+#+END_SRC
+
+** prevent modified buffers; exit anyway prompt
+
+#+BEGIN_SRC emacs-lisp
+  (defun override-save-buffers-kill-emacs (&optional arg)
+    "Offer to save each buffer(once only), then kill this Emacs process.
+  With prefix ARG, silently save all file-visiting buffers, then kill."
+    (interactive "P")
+    (save-some-buffers arg t)
+    (and (or (not (fboundp 'process-list))
+             ;; process-list is not defined on MSDOS.
+             (let ((processes (process-list))
+                   active)
+               (while processes
+                 (and (memq (process-status (car processes)) '(run stop open listen))
+                      (process-query-on-exit-flag (car processes))
+                      (setq active t))
+                 (setq processes (cdr processes)))
+               (or (not active)
+                   (progn (list-processes t)
+                          (yes-or-no-p "Active processes exist; kill them and exit anyway? ")))))
+         ;; Query the user for other things, perhaps.
+         (run-hook-with-args-until-failure 'kill-emacs-query-functions)
+         (or (null confirm-kill-emacs)
+             (funcall confirm-kill-emacs "Really exit Emacs? "))
+         (kill-emacs)))
+
+  (fset 'save-buffers-kill-emacs 'override-save-buffers-kill-emacs)
+#+END_SRC
+
+** fzf
+
+#+BEGIN_SRC emacs-lisp
+  (straight-use-package 'fzf)
+#+END_SRC
+   
+* Platform
+
+Each platform has its quirks. This is where we attemp to normalize things.
+
+** OSX
+   
+Set the right execution path according to your shell.
+
+#+BEGIN_SRC emacs-lisp
+  (straight-use-package 'exec-path-from-shell)
+  (exec-path-from-shell-initialize)
+#+END_SRC
+
+* EVIL-MODE
+
+I am cursed to edit text modally for the rest time!
+
+This section loads and configures our packages to work well in =evil-mode=.
+
+** Setup Evil
+
+First we must disable =evil-want-C-i-jump= if we want tab to execute =org-cycle= in =org-mode=. Unfortunately, this must be appear BEFORE evil is installed.
+
+#+BEGIN_SRC emacs-lisp
+(setq evil-want-C-i-jump nil)
+#+END_SRC
+
+Alright, now we can load the =evil-mode= package! Let's get our =vim= on!
+
+#+BEGIN_SRC emacs-lisp
+(straight-use-package 'evil)
+#+END_SRC
+
+** Evil Key Bindings
+
+*** Cut and Paste
+    
+Remote yank send the region contents to the remote client.
+
+#+BEGIN_SRC emacs-lisp
+  (defun copy-to-remote-clipboard ()
+    (interactive)
+    (if (display-graphic-p)
+        (progn
+          (message "Yanked region to x-clipboard!")
+          (call-interactively 'clipboard-kill-ring-save))
+      (if (region-active-p)
+          (progn
+            (shell-command-on-region (region-beginning) (region-end)
+                                     "nc -q 0 localhost 2224")
+            (message "Yanked region to remote clipboard!")
+            (deactivate-mark))
+        (message "No region active; can't yank to clipboard!"))))
+#+END_SRC
+
+Remote paste pulls the paste context from the remote client and pushed it into the buffer.
+
+#+BEGIN_SRC emacs-lisp
+  (defun paste-from-remote-clipboard ()
+    "Pastes from remote clipboard"
+    (interactive)
+    (cond ((display-graphic-p)
+           (progn
+             (clipboard-yank)
+             (message "graphics active")))
+          ((region-active-p)
+           (shell-command-on-region (region-beginning) (region-end)
+                                    "nc localhost 2225"
+                                    (current-buffer) t))
+          (t (insert (shell-command-to-string "nc localhost 2225")))))
+#+END_SRC
+
+Insert key bindings into Normal and Visual modes
+
+#+BEGIN_SRC emacs-lisp
+  (general-define-key
+   :keymaps 'evil-normal-state-map
+   :prefix "SPC"
+   "p" '(lambda ()
+          (interactive)
+          (forward-char)
+          (paste-from-remote-clipboard)))
+
+  (general-define-key
+   :keymaps 'evil-visual-state-map
+   :prefix "SPC"
+   "y" '(lambda ()
+          (interactive)
+          (copy-to-remote-clipboard)
+          (evil-exit-visual-state))
+   "p" '(lambda ()
+          (interactive)
+          (paste-from-remote-clipboard)
+          (evil-exit-visual-state)))
+#+END_SRC
+
+*** Leader bindings
+
+*Normal Mode keybidings*
+
+#+BEGIN_SRC emacs-lisp
+  (general-define-key
+   :keymaps 'evil-normal-state-map
+   :prefix "SPC"
+   ":" 'eval-expression
+   "d" 'kill-this-buffer
+   "e" 'eval-buffer)
+#+END_SRC
+
+*Visual Mode keybindings*
+
+#+BEGIN_SRC emacs-lisp
+  (defun evil-eval-region ()
+    (interactive)
+    (eval-region (region-beginning) (region-end))
+    (evil-exit-visual-state))
+
+  (general-define-key
+   :keymaps 'evil-visual-state-map
+   :prefix "SPC"
+   "e" 'evil-eval-region)
+#+END_SRC
+
+*** Bind in motion state
+
+=j= and =k= should navigate visual lines as they are wrapped on the screen. This feels more intuitive.
+
+#+BEGIN_SRC emacs-lisp
+(general-define-key
+ :keymaps 'evil-normal-state-map
+ "j" 'evil-next-visual-line
+ "k" 'evil-previous-visual-line)
+#+END_SRC
+
+** Evil Projectile
+
+Projectile is a project interaction library for Emacs. https://github.com/bbatsov/projectile
+
+*** load projectile
+
+#+BEGIN_SRC emacs-lisp
+  (straight-use-package 'projectile)
+  (projectile-mode 1)
+#+END_SRC
+
+*** bind evil key mappings
+
+#+BEGIN_SRC emacs-lisp
+  (general-define-key
+   :keymaps 'evil-normal-state-map
+   :prefix "SPC"
+   "f" 'fzf-projectile
+   )
+#+END_SRC
+ 
+** Evil Ivy
+   
+Emacs incremental completion and selection narrowing framework https://emacs-helm.github.io/helm/
+
+*** load ivy
+
+#+BEGIN_SRC emacs-lisp
+  (straight-use-package 'ivy)
+
+  (ivy-mode 1)
+
+  (setq ivy-use-virtual-buffers t)
+  (setq enable-recursive-minibuffers t)
+#+END_SRC
+
+*** bind evil key mappings
+
+#+BEGIN_SRC emacs-lisp
+  (general-define-key
+   :keymaps 'evil-normal-state-map
+   :prefix "SPC"
+   "b" 'buffer-list)
+#+END_SRC
+    
+** Evil Org Mode
+   
+Org mode is where it is at! It's the entire reason I switched back to =emacs= from =vim=! Let's set it up so that it plays nicely with =evil-mode=.
+
+*** Fontify code blocks
+
+Render code blocks with syntax highlighting.
+
+#+BEGIN_SRC emacs-lisp
+(setq org-src-fontify-natively t)
+#+END_SRC
+
+*** Fix tab key behavior
+
+Fix =<tab>= so that it cycles through heading section expansions. Without this, the tab behavior is entirely broken due to =evil-mode=.
+
+#+BEGIN_SRC emacs-lisp
+  (general-define-key
+   :keymaps 'org-mode-map
+   :states '(insert normal)
+   "<tab>" 'org-cycle) 
+#+END_SRC
+
+*** org-src-mode key bindings
+
+Add key bindings to make working with =org-src-mode= easier in =evil-mode=.
+
+#+BEGIN_SRC emacs-lisp
+  (general-define-key
+     :keymaps 'evil-normal-state-map
+     :prefix "SPC"
+     "'" 'org-edit-special)
+
+  (defun evil-org-edit-src-write (old-fun &rest args)
+    (if (bound-and-true-p org-src-mode)
+        (org-edit-src-save)
+        (apply old-fun args)))
+
+  (defun evil-org-edit-src-quit (old-fun &rest args)
+    (if (bound-and-true-p org-src-mode)
+        (org-edit-src-exit)
+        (apply old-fun args)))
+
+  (defun evil-org-edit-src-save-and-close (old-fun &rest args)
+    (if (bound-and-true-p org-src-mode)
+        (progn
+          (org-edit-src-save)
+          (org-edit-src-exit))
+        (apply old-fun args)))
+
+  (advice-add #'evil-write :around #'evil-org-edit-src-write)
+  (advice-add #'evil-quit :around #'evil-org-edit-src-quit)
+  (advice-add #'evil-save-and-close :around #'evil-org-edit-src-save-and-close)
+#+END_SRC
+
+** Evil Company Mode
+
+Company is a text completion framework for Emacs.
+
+*** load company
+
+#+BEGIN_SRC emacs-lisp
+(straight-use-package 'company)
+(require 'company)
+#+END_SRC
+
+*** hook up global-company-mode
+    
+After init, set up hook so that we enable company mode in all buffers.
+
+#+BEGIN_SRC emacs-lisp
+(add-hook 'after-init-hook 'global-company-mode)
+#+END_SRC
+    
+*** abort when we leave insert mode
+
+We only want completions whilst we are inserting text. We should abort =company= when exiting the insert state.
+
+#+BEGIN_SRC emacs-lisp
+  (defun abort-company-on-insert-state-exit ()
+    (company-abort))
+  (add-hook 'evil-insert-state-exit-hook 'abort-company-on-insert-state-exit)
+#+END_SRC
+
+*** setup evil key bindings
+
+Set up =company-active-map= key bindings so =C-n= and =C-p= navigate down and up the completions list.
+
+#+BEGIN_SRC emacs-lisp
+  (general-define-key
+   :keymaps 'company-active-map
+   "M-n" nil
+   "M-p" nil
+   "C-n" 'company-select-next
+   "C-p" 'company-select-previous)
+#+END_SRC
+
+*** Abort completion pop-up when typing away from match.
+    
+=company-mode='s default is to disallow any input that doesn't match a completion. This feels bad. Instead lets abort =company= when we type a character that doesn't match.
+
+#+BEGIN_SRC emacs-lisp
+(setq company-require-match nil)
+#+END_SRC
+
+** Evil Escape 
+
+[[https://github.com/syl20bnr/evil-escape][Evil Escape]] is a customizable key sequence to escape from =evil-mode='s insertion state.
+
+*** bind "jk" to escape
+
+#+BEGIN_SRC emacs-lisp
+(straight-use-package 'evil-escape)
+(setq-default evil-escape-key-sequence "jk")
+(evil-escape-mode)
+#+END_SRC
+
+** Evil Flycheck
+
+[[http://www.flycheck.org/en/latest/][Flycheck]] is a modern on-the-fly syntax checking extension for GNU Emacs, intended as replacement for the older Flymake extension which is part of GNU Emacs.
+
+#+BEGIN_SRC emacs-lisp
+  (straight-use-package 'flycheck)
+#+END_SRC
+    
+** Evil Languages
+
+This is where we configure our packages for the languages we work in.
+
+*** lisps
+
+Lisp family configurations.
+
+**** rainbow-delimiters
+
+Highlight matching delimiters with unique colors.
+
+#+BEGIN_SRC emacs-lisp
+(straight-use-package 'rainbow-delimiters)
+
+(add-hook 'emacs-lisp-mode-hook 'rainbow-delimiters-mode)
+(add-hook 'clojure-mode-hook 'rainbow-delimiters-mode)
+(add-hook 'lisp-mode-hook 'rainbow-delimiters-mode)
+#+END_SRC
+
+**** lispy
+
+Short and sweet LISP editing http://oremacs.com/lispy/
+
+#+BEGIN_SRC emacs-lisp
+  (straight-use-package 'lispy)
+
+  (add-hook 'emacs-lisp-mode-hook 'lispy-mode)
+  (add-hook 'clojure-mode-hook 'lispy-mode) 
+  (add-hook 'lisp-mode-hook () 'lispy-mode)
+#+END_SRC
+
+**** lispyville
+     
+lispy + evil = lispyville.
+
+#+BEGIN_SRC emacs-lisp
+  (straight-use-package 'lispyville)
+
+  (add-hook 'lispy-mode-hook #'lispyville-mode)
+
+  (with-eval-after-load 'lispyville
+    (lispyville-set-key-theme
+     '(special
+       special-lispy-raise
+       operators
+       (escape insert)
+       (slurp/barf-lispy normal)
+       (additional-movement normal visual motion))))
+
+  (defun evil-lispy-raise (old-fun &rest args)
+    (if (and (bound-and-true-p lispy-mode)
+             (or (lispyville--at-left-p)
+                 (lispyville--at-right-p)))
+        (lispy-raise (car args))
+        (apply old-fun args)))
+
+  (advice-add #'evil-replace :around #'evil-lispy-raise)
+#+END_SRC
+
+*** elisp
+**** flycheck
+     
+Enable syntax highlighting and code linting.
+
+#+BEGIN_SRC emacs-lisp
+  (add-hook 'emacs-lisp-mode-hook #'flycheck-mode)
+
+  (setq-default flycheck-disabled-checkers '(emacs-lisp-checkdoc))
+#+END_SRC
+
+*** clojure
+**** clojure-mode
+
+#+BEGIN_SRC emacs-lisp
+  (straight-use-package 'clojure-mode)
+#+END_SRC
+
+**** cider
+
+#+BEGIN_SRC emacs-lisp
+  (straight-use-package 'cider)
+#+END_SRC
+
+*** javascript
+**** rjsx-mode
+
+A JSX major mode for Emacs [[https://github.com/felipeochoa/rjsx-mode][https://github.com/felipeochoa/rjsx-mode]]
+
+#+BEGIN_SRC emacs-lisp
+  (straight-use-package 'rjsx-mode)
+
+  (add-to-list 'auto-mode-alist '("components\\/.*\\.js\\'" . rjsx-mode))
+#+END_SRC
+
+**** prettier-js
+
+=prettier-js= is a minor mode that applies (prettier-js) on save.
+
+#+BEGIN_SRC emacs-lisp
+  (straight-use-package 'prettier-js)
+
+  (add-hook 'js-mode-hook 'prettier-js-mode)
+  (add-hook 'js2-mode-hook 'prettier-js-mode)
+  (add-hook 'rjsx-mode-hook 'prettier-js-mode)
+  (add-hook 'web-mode-hook 'prettier-js-mode)
+#+END_SRC
+
+*** flow
+**** flow-minor-mode
+
+#+BEGIN_SRC emacs-lisp
+  (straight-use-package 'flow-minor-mode)
+
+  (add-hook 'js-mode-hook #'flow-minor-enable-automatically)
+  (add-hook 'js2-mode-hook #'flow-minor-enable-automatically)
+  (add-hook 'rjsx-mode-hook #'flow-minor-enable-automatically)
+#+END_SRC
+
+**** flycheck-flow
+
+#+BEGIN_SRC emacs-lisp
+  (straight-use-package 'flycheck-flow)
+
+  (add-hook 'js-mode-hook #'flycheck-mode)
+  (add-hook 'js2-mode-hook #'flycheck-mode)
+  (add-hook 'rjsx-mode-hook #'flycheck-mode)
+#+END_SRC
+
+**** company-flow
+     
+#+BEGIN_SRC emacs-lisp
+  (straight-use-package 'company-flow)
+
+  (add-hook 'js-mode-hook #'company-mode)
+              (eval-after-load 'company
+                '(add-to-list 'company-backends #'company-flow))
+#+END_SRC
+
+*** php
+**** hack-mode
+
+#+BEGIN_SRC emacs-lisp
+  (require 'hack-mode)
+  (add-hook 'php-mode-hook 'hack-mode)
+#+END_SRC
+
+** Activate Evil!
+
+Now that everything is configured, we can safely enter =evil-mode=. Happy editing!
+
+#+BEGIN_SRC emacs-lisp
+  (evil-mode 1)
+#+END_SRC
+:q
