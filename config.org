@@ -102,7 +102,12 @@ NO DISTRACTIONS.
 ** Font
 
 #+BEGIN_SRC emacs-lisp
-  (set-default-font "Fira Code")
+  (when (window-system)
+    (set-face-attribute 'default nil
+                        :family "Fira Code"
+                        :height 140
+                        :weight 'normal
+                        :width 'normal))
 #+END_SRC
 
 ** Vertical border
@@ -228,6 +233,13 @@ General is a library for defining keys in emacs. It makes setting up key binding
   (straight-use-package 'fzf)
 #+END_SRC
    
+** smooth-scrolling
+
+#+BEGIN_SRC emacs-lisp
+  (straight-use-package 'smooth-scrolling)
+  (smooth-scrolling-mode 1)
+#+END_SRC
+
 * Platform
 
 Each platform has its quirks. This is where we attemp to normalize things.
@@ -247,7 +259,7 @@ I am cursed to edit text modally for the rest time!
 
 This section loads and configures our packages to work well in =evil-mode=.
 
-** Setup Evil
+** Load Evil
 
 First we must disable =evil-want-C-i-jump= if we want tab to execute =org-cycle= in =org-mode=. Unfortunately, this must be appear BEFORE evil is installed.
 
@@ -259,6 +271,14 @@ Alright, now we can load the =evil-mode= package! Let's get our =vim= on!
 
 #+BEGIN_SRC emacs-lisp
 (straight-use-package 'evil)
+#+END_SRC
+
+** Evil Spacing
+
+#+BEGIN_SRC emacs-lisp
+  (setq default-tab-width 2)
+  (general-define-key :keymaps 'evil-insert-state-map
+                      "TAB" 'tab-to-tab-stop)
 #+END_SRC
 
 ** Evil Key Bindings
@@ -530,6 +550,7 @@ Set up =company-active-map= key bindings so =C-n= and =C-p= navigate down and up
 
 #+BEGIN_SRC emacs-lisp
   (straight-use-package 'flycheck)
+  (require 'flycheck)
 #+END_SRC
     
 ** Evil Languages
@@ -545,11 +566,11 @@ Lisp family configurations.
 Highlight matching delimiters with unique colors.
 
 #+BEGIN_SRC emacs-lisp
-(straight-use-package 'rainbow-delimiters)
+  (straight-use-package 'rainbow-delimiters)
 
-(add-hook 'emacs-lisp-mode-hook 'rainbow-delimiters-mode)
-(add-hook 'clojure-mode-hook 'rainbow-delimiters-mode)
-(add-hook 'lisp-mode-hook 'rainbow-delimiters-mode)
+  (add-hook 'emacs-lisp-mode-hook 'rainbow-delimiters-mode)
+  (add-hook 'clojure-mode-hook 'rainbow-delimiters-mode)
+  (add-hook 'lisp-mode-hook 'rainbow-delimiters-mode)
 #+END_SRC
 
 **** lispy
@@ -561,7 +582,7 @@ Short and sweet LISP editing http://oremacs.com/lispy/
 
   (add-hook 'emacs-lisp-mode-hook 'lispy-mode)
   (add-hook 'clojure-mode-hook 'lispy-mode) 
-  (add-hook 'lisp-mode-hook () 'lispy-mode)
+  (add-hook 'lisp-mode-hook 'lispy-mode)
 #+END_SRC
 
 **** lispyville
@@ -617,58 +638,75 @@ Enable syntax highlighting and code linting.
 #+END_SRC
 
 *** javascript
-**** rjsx-mode
 
-A JSX major mode for Emacs [[https://github.com/felipeochoa/rjsx-mode][https://github.com/felipeochoa/rjsx-mode]]
+**** Add web-mode
 
 #+BEGIN_SRC emacs-lisp
-  (straight-use-package 'rjsx-mode)
+  (straight-use-package 'web-mode)
 
-  (add-to-list 'auto-mode-alist '("components\\/.*\\.js\\'" . rjsx-mode))
+  (add-to-list 'auto-mode-alist '(".js" . web-mode))
+  (add-to-list 'auto-mode-alist '(".html" . web-mode))
 #+END_SRC
 
-**** prettier-js
+**** Prettier integration
 
 =prettier-js= is a minor mode that applies (prettier-js) on save.
 
 #+BEGIN_SRC emacs-lisp
   (straight-use-package 'prettier-js)
 
-  (add-hook 'js-mode-hook 'prettier-js-mode)
   (add-hook 'js2-mode-hook 'prettier-js-mode)
-  (add-hook 'rjsx-mode-hook 'prettier-js-mode)
   (add-hook 'web-mode-hook 'prettier-js-mode)
 #+END_SRC
 
 *** flow
-**** flow-minor-mode
+
+**** Syntax highlighting
 
 #+BEGIN_SRC emacs-lisp
-  (straight-use-package 'flow-minor-mode)
-
-  (add-hook 'js-mode-hook #'flow-minor-enable-automatically)
-  (add-hook 'js2-mode-hook #'flow-minor-enable-automatically)
-  (add-hook 'rjsx-mode-hook #'flow-minor-enable-automatically)
+  (straight-use-package '(flow-jsx :type git :host github :repo "omouse/emacs-flow-jsx"))
 #+END_SRC
 
-**** flycheck-flow
+**** Company integration
+
+#+BEGIN_SRC emacs-lisp
+  (straight-use-package 'company-flow)
+  (require 'company-flow)
+  (eval-after-load 'company
+    '(add-to-list 'company-backends 'company-flow))
+#+END_SRC
+
+**** Flycheck integration
 
 #+BEGIN_SRC emacs-lisp
   (straight-use-package 'flycheck-flow)
+  (require 'flycheck-flow)
 
-  (add-hook 'js-mode-hook #'flycheck-mode)
-  (add-hook 'js2-mode-hook #'flycheck-mode)
-  (add-hook 'rjsx-mode-hook #'flycheck-mode)
+  ;; Add eslint and flow checkers to flycheck
+  (flycheck-add-mode 'javascript-eslint 'web-mode)
+  (flycheck-add-mode 'javascript-flow 'web-mode)
+
+  ;; disable jshint to favor eslint checking
+  (setq-default flycheck-disabled-checkers
+                (append flycheck-disabled-checkers
+                        '(javascript-jshint))) 
+
+  (flycheck-add-mode 'javascript-flow 'flow-jsx-mode)
 #+END_SRC
 
-**** company-flow
-     
-#+BEGIN_SRC emacs-lisp
-  (straight-use-package 'company-flow)
+**** Hook up flow modes
 
-  (add-hook 'js-mode-hook #'company-mode)
-              (eval-after-load 'company
-                '(add-to-list 'company-backends #'company-flow))
+"And in the darkness, bind them"
+
+#+BEGIN_SRC emacs-lisp
+  (defun jsWithEslintFlow ()
+    "flow and eslint for js files"
+    (interactive)
+    (flow-jsx-mode)
+    (prettier-js-mode)
+    (flycheck-select-checker 'javascript-flow)
+    (flycheck-mode))
+  (add-to-list 'magic-mode-alist '("\/\/ @flow" . jsWithEslintFlow))
 #+END_SRC
 
 *** php
@@ -678,7 +716,7 @@ A JSX major mode for Emacs [[https://github.com/felipeochoa/rjsx-mode][https://g
   (require 'hack-mode)
   (add-hook 'php-mode-hook 'hack-mode)
 #+END_SRC
-
+     
 ** Activate Evil!
 
 Now that everything is configured, we can safely enter =evil-mode=. Happy editing!
